@@ -378,10 +378,14 @@
             lucide.createIcons();
             document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
             
-            if (currentUser) {
+            const savedAccount = currentUser && getUsers().find(user => user.email === currentUser.email);
+            if (savedAccount) {
+                currentUser = { name: savedAccount.name, email: savedAccount.email };
                 loadUserTransactions();
                 showDashboard();
             } else {
+                currentUser = null;
+                localStorage.removeItem('budgetgenie_user');
                 showAuthScreen();
             }
         });
