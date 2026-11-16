@@ -318,11 +318,11 @@
 
     <script>
         // APP STATE
-        let currentUser = JSON.parse(localStorage.getItem('budgetgenie_user')) || null;
+        let currentUser = null;
+        try { currentUser = JSON.parse(localStorage.getItem('budgetgenie_user') || 'null'); } catch { localStorage.removeItem('budgetgenie_user'); }
         let transactions = [];
         let activeType = 'expense';
         const USERS_KEY = 'budgetgenie_users';
-        const legacyTransactions = JSON.parse(localStorage.getItem('budgetgenie_txs') || '[]');
 
         function getUsers() {
             try { return JSON.parse(localStorage.getItem(USERS_KEY) || '[]'); }
@@ -712,11 +712,9 @@
         function exportToCSV() {
             if (transactions.length === 0) return alert("No data to export!");
             
-            let csvContent = "data:text/csv;charset=utf-8,ID,Title,Amount,Type,Category,Date
-";
+            let csvContent = "data:text/csv;charset=utf-8,ID,Title,Amount,Type,Category,Date\n";
             transactions.forEach(t => {
-                csvContent += `${t.id},"${t.title}",${t.amount},${t.type},${t.category},${t.date}
-`;
+                csvContent += `${t.id},"${String(t.title).replace(/"/g, '""')}",${t.amount},${t.type},${t.category},${t.date}\n`;
             });
 
             const encodedUri = encodeURI(csvContent);
