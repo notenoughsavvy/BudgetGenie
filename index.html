@@ -319,8 +319,39 @@
     <script>
         // APP STATE
         let currentUser = JSON.parse(localStorage.getItem('budgetgenie_user')) || null;
-        let transactions = JSON.parse(localStorage.getItem('budgetgenie_txs')) || [];
+        let transactions = [];
         let activeType = 'expense';
+        const USERS_KEY = 'budgetgenie_users';
+        const legacyTransactions = JSON.parse(localStorage.getItem('budgetgenie_txs') || '[]');
+
+        function getUsers() {
+            try { return JSON.parse(localStorage.getItem(USERS_KEY) || '[]'); }
+            catch { return []; }
+        }
+        function userTransactionsKey() {
+            return currentUser && currentUser.email
+                ? 'budgetgenie_txs_' + currentUser.email.toLowerCase()
+                : 'budgetgenie_txs_guest';
+        }
+        function loadUserTransactions() {
+            try {
+                const saved = localStorage.getItem(userTransactionsKey());
+                transactions = saved ? JSON.parse(saved) : [];
+                if (!Array.isArray(transactions)) transactions = [];
+            } catch { transactions = []; }
+        }
+        function showAuthMessage(message, success = false) {
+            let el = document.getElementById('authFeedback');
+            if (!el) {
+                el = document.createElement('p');
+                el.id = 'authFeedback';
+                el.className = 'text-xs text-center rounded-lg px-3 py-2 mt-3';
+                document.querySelector('#authScreen .p-8').prepend(el);
+            }
+            el.textContent = message;
+            el.className = 'text-xs text-center rounded-lg px-3 py-2 mt-3 ' +
+                (success ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700');
+        }
         let activeFilter = 'all';
 
         const categoryColors = {
@@ -348,6 +379,7 @@
             document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
             
             if (currentUser) {
+                loadUserTransactions();
                 showDashboard();
             } else {
                 showAuthScreen();
@@ -376,28 +408,49 @@
 
         document.getElementById('authLoginForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            const email = document.getElementById('loginEmail').value;
-            currentUser = { name: email.split('@')[0], email: email };
+            const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+            const password = document.getElementById('loginPassword').value;
+            const account = getUsers().find(user => user.email === email && user.password === password);
+
+            if (!account) {
+                showAuthMessage('Account not found or password is incorrect. Create an account first, or check your details.');
+                return;
+            }
+            currentUser = { name: account.name, email: account.email };
             localStorage.setItem('budgetgenie_user', JSON.stringify(currentUser));
+            loadUserTransactions();
             showDashboard();
         });
 
         document.getElementById('authRegisterForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            const name = document.getElementById('regName').value;
-            const email = document.getElementById('regEmail').value;
-            currentUser = { name: name, email: email };
+            const name = document.getElementById('regName').value.trim();
+            const email = document.getElementById('regEmail').value.trim().toLowerCase();
+            const password = document.getElementById('regPassword').value;
+            if (name.length < 2) return showAuthMessage('Please enter your full name.');
+            if (password.length < 6) return showAuthMessage('Please use a password with at least 6 characters.');
+            const users = getUsers();
+            if (users.some(user => user.email === email)) {
+                return showAuthMessage('An account with this email already exists. Please sign in instead.');
+            }
+            users.push({ name, email, password });
+            localStorage.setItem(USERS_KEY, JSON.stringify(users));
+            currentUser = { name, email };
             localStorage.setItem('budgetgenie_user', JSON.stringify(currentUser));
+            transactions = [];
+            saveTransactions();
             showDashboard();
         });
 
         function guestLogin() {
-            currentUser = { name: 'Guest Explorer', email: 'guest@budgetgenie.app' };
+            currentUser = { name: 'Guest Explorer', email: 'guest@budgetgenie.app', guest: true };
+            loadUserTransactions();
             showDashboard();
         }
 
         function logout() {
             currentUser = null;
+            transactions = [];
             localStorage.removeItem('budgetgenie_user');
             showAuthScreen();
         }
@@ -443,6 +496,10 @@
             const amount = parseFloat(document.getElementById('txAmount').value);
             const date = document.getElementById('txDate').value;
             const category = document.getElementById('txCategory').value;
+            if (!title.trim() || !Number.isFinite(amount) || amount <= 0 || !date) {
+                alert('Please enter a description, a valid amount greater than zero, and a date.');
+                return;
+            }
 
             const newTx = {
                 id: Date.now().toString(),
@@ -469,7 +526,7 @@
         }
 
         function saveTransactions() {
-            localStorage.setItem('budgetgenie_txs', JSON.stringify(transactions));
+            localStorage.setItem(userTransactionsKey(), JSON.stringify(transactions));
         }
 
         function setFilter(filter) {
@@ -644,6 +701,7 @@
             ];
             saveTransactions();
             renderApp();
+            showAuthMessage('');
         }
 
         // EXPORT TO CSV
